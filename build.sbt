@@ -23,6 +23,7 @@ def project(id: String, base: File): Project =
       name := id,
       autoStartServer := false,
       addCompilerPlugin("org.typelevel" %% "kind-projector" % "0.11.0" cross CrossVersion.full),
+      addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
       libraryDependencies ++= dependencies,
       scalacOptions ++= Seq(
         "-encoding", "utf8",
@@ -32,8 +33,8 @@ def project(id: String, base: File): Project =
         "-language:higherKinds",
         "-language:existentials",
         "-language:postfixOps",
-        "-Ymacro-annotations",
-        "-Ywarn-value-discard"
+        "-Ywarn-value-discard",
+        "-Xfatal-warnings"
       ),
       fork := true,
       publishArtifact in Test := true

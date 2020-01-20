@@ -9,7 +9,3 @@ Scalaz module following the book **Functional Programming for Mortals with Scala
 - [SBT](docs/sbt.md)
 
 - [Release](docs/release.md)
-
-- Chapters
-
-  -

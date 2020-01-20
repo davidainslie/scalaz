@@ -4,15 +4,15 @@ object Dependencies {
   lazy val dependencies: Seq[ModuleID] =
     Seq(
       scalatest, scalacheck, scalacheckShapeless, pureConfig,
-      monocle, scalaz, cats, shapeless
+      monocle, scalaz, contextual, refined
     ).flatten
   
   lazy val scalatest: Seq[ModuleID] = Seq(
-    "org.scalatest" %% "scalatest" % "3.1.0" % "test, it" withSources() withJavadoc()
+    "org.scalatest" %% "scalatest" % "3.1.0" % Test withSources() withJavadoc()
   )
 
   lazy val scalacheck: Seq[ModuleID] = Seq(
-    "org.scalacheck" %% "scalacheck" % "1.14.3" % "test, it" withSources() withJavadoc()
+    "org.scalacheck" %% "scalacheck" % "1.14.3" % Test withSources() withJavadoc()
   )
 
   lazy val scalacheckShapeless: Seq[ModuleID] = Seq(
@@ -32,32 +32,27 @@ object Dependencies {
 
     Seq(
       "monocle-law"
-    ).map(group %% _ % version % "test, it" withSources() withJavadoc()) ++ Seq(
+    ).map(group %% _ % version % Test withSources() withJavadoc()) ++ Seq(
       "monocle-core", "monocle-macro", "monocle-generic"
     ).map(group %% _ % version withSources() withJavadoc())
   }
 
   lazy val scalaz: Seq[ModuleID] = {
     val group = "org.scalaz"
-    val version = "7.3.0-M31"
+    val version = "7.2.30"
 
     Seq(
       "scalaz-core"
-    ).map(group %% _ % version withSources() withJavadoc())
-  }
-
-  lazy val cats: Seq[ModuleID] = {
-    val group = "org.typelevel"
-    val version = "2.0.0"
-
-    Seq(
-      "cats-core", "cats-effect"
     ).map(group %% _ % version withSources() withJavadoc()) ++ Seq(
-      "cats-laws", "cats-testkit"
-    ).map(group %% _ % version % "test, it" withSources() withJavadoc())
+      "scalaz-ioeffect"
+    ).map(group %% _ % "2.10.1" withSources())
   }
 
-  lazy val shapeless: Seq[ModuleID] = Seq(
-    "com.chuusai" %% "shapeless" % "2.3.3" withSources() withJavadoc()
+  lazy val contextual: Seq[ModuleID] = Seq(
+    "com.propensive" %% "contextual" % "1.2.1" withSources() withJavadoc()
+  )
+
+  lazy val refined: Seq[ModuleID] = Seq(
+    "eu.timepit" %% "refined-scalaz" % "0.9.2"
   )
 }

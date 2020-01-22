@@ -4,7 +4,6 @@ import scalaz.NonEmptyList
 import scalaz.Scalaz.Id
 import org.scalatest.matchers.must.Matchers
 import org.scalatest.wordspec.AnyWordSpec
-import com.backwards.fp.chap3.Chap3._
 import com.backwards.fp.chap3.Data._
 import com.backwards.fp.time._
 

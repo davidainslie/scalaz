@@ -158,26 +158,106 @@ object Refined extends App {
         new UrlEncoded {}
       )
   }
+
+  // By not providing any functionality, ADTs can have a minimal set of dependencies.
+  // This makes them easy to publish and share with other developers.
+  // By using a simple data modelling language, it makes it possible to interact with cross-discipline teams,
+  // such as DBAs, UI developers and business analysts, using the actual code instead of a hand written document as the source of truth.
+
+  // Furthermore, tooling can be more easily written to produce or consume schemas from other programming languages and wire protocols.
+
+  // Complexity:
+
+  // To find the complexity of a product, we multiply the complexity of each part:
+  // (Boolean, Boolean) has 4 values (2*2)
+  // (Boolean, Boolean, Boolean) has 8 values (2*2*2)
+
+  // To find the complexity of a coproduct, we add the complexity of each part:
+  // (Boolean |: Boolean) has 4 values (2+2)
+  // (Boolean |: Boolean |: Boolean) has 6 values (2+2+2)
+
+  // In FP, functions are total and must return an value for every input, no Exception.
+  // Minimising the complexity of inputs and outputs is the best way to achieve totality.
+  // As a rule of thumb, it is a sign of a badly designed function when the complexity of a function’s return value
+  // is larger than the product of its input.
 }
 
-// By not providing any functionality, ADTs can have a minimal set of dependencies.
-// This makes them easy to publish and share with other developers.
-// By using a simple data modelling language, it makes it possible to interact with cross-discipline teams,
-// such as DBAs, UI developers and business analysts, using the actual code instead of a hand written document as the source of truth.
+object TypeClass extends App {
+  // The most common kind of function is a polymorphic function, which lives in a typeclass.
+  // A typeclass is a trait that:
+  // - holds no state
+  // - has a type parameter
+  // - has at least one abstract method (primitive combinators)
+  // - may contain generalised methods (derived combinators)
+  // - may extend other typeclasses
 
-// Furthermore, tooling can be more easily written to produce or consume schemas from other programming languages and wire protocols.
+  def signOfTheTimes[T](t: T)(implicit N: Numeric[T]): T = {
+    import N._
+    times(negate(abs(t)), t)
+  }
 
-// Complexity:
+  // Note: We are no longer dependent on the OOP hierarchy of our input types,
+  // i.e. we don't demand that our input "is a" Numeric, which is vitally important
+  // if we want to support a third party class that we cannot redefine.
 
-// To find the complexity of a product, we multiply the complexity of each part:
-// (Boolean, Boolean) has 4 values (2*2)
-// (Boolean, Boolean, Boolean) has 8 values (2*2*2)
+  // Another advantage of typeclasses is that the association of functionality to data is at compiletime,
+  // as opposed to OOP runtime dynamic dispatch.
+}
 
-// To find the complexity of a coproduct, we add the complexity of each part:
-// (Boolean |: Boolean) has 4 values (2+2)
-// (Boolean |: Boolean |: Boolean) has 6 values (2+2+2)
+object Simulacrum extends App {
+  // First step towards Simulacrum is to reduce/understand the boilerplate above,
+  // by introducing ops on the typeclass companion:
 
-// In FP, functions are total and must return an value for every input, no Exception.
-// Minimising the complexity of inputs and outputs is the best way to achieve totality.
-// As a rule of thumb, it is a sign of a badly designed function when the complexity of a function’s return value
-// is larger than the product of its input.
+  object Numeric {
+    def apply[T](implicit numeric: Numeric[T]): Numeric[T] = numeric
+
+    object ops {
+      implicit class NumericOps[T](t: T)(implicit N: Numeric[T]) {
+        def +(o: T): T = N.plus(t, o)
+        def *(o: T): T = N.times(t, o)
+        def unary_- : T = N.negate(t)
+        def abs: T = N.abs(t)
+
+        // Duplicated from Ordering.ops
+        def <(o: T): Boolean = N.lt(t, o)
+        def >(o: T): Boolean = N.gt(t, o)
+      }
+    }
+  }
+
+  // Now we can write:
+  import Numeric.ops._
+
+  def signOfTheTimes[T: Numeric](t: T): T = -t.abs * t
+
+  // But, we never need to write this boilerplate because Simulacrum provides a
+  // @typeclass macro annotation that automatically generates the "apply" and "ops".
+}
+
+object UsingSimulacrum extends App {
+  import simulacrum._
+
+  // TODO - Macro expansion issue needs this silly wrapper
+  object Foo {
+    @typeclass
+    trait Ordering[T] {
+      def compare(x: T, y: T): Int
+      @op("<") def lt(x: T, y: T): Boolean = compare(x, y) < 0
+      @op(">") def gt(x: T, y: T): Boolean = compare(x, y) > 0
+    }
+
+    @typeclass
+    trait Numeric[T] extends Ordering[T] {
+      @op("+") def plus(x: T, y: T): T
+      @op("*") def times(x: T, y: T): T
+      @op("unary_-") def negate(x: T): T
+      def zero: T
+      def abs(x: T): T = if (lt(x, zero)) negate(x) else x
+    }
+  }
+
+  import Foo.Numeric.ops
+
+  // TODO - Broken for some reason
+  // def signOfTheTimes[T: Foo.Numeric](t: T): T = -t.abs * t
+}

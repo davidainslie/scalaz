@@ -4,7 +4,7 @@ object Dependencies {
   lazy val dependencies: Seq[ModuleID] =
     Seq(
       scalatest, scalacheck, scalacheckShapeless, pureConfig,
-      monocle, scalaz, contextual, refined
+      simulacrum, monocle, scalaz, contextual, refined
     ).flatten
   
   lazy val scalatest: Seq[ModuleID] = Seq(
@@ -25,6 +25,10 @@ object Dependencies {
 
     Seq("pureconfig").map(group %% _ % version withSources() withJavadoc())
   }
+
+  lazy val simulacrum: Seq[ModuleID] = Seq(
+    "org.typelevel" %% "simulacrum" % "1.0.0" withSources() withJavadoc()
+  )
 
   lazy val monocle: Seq[ModuleID] = {
     val group = "com.github.julien-truffaut"

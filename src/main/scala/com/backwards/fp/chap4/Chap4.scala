@@ -611,12 +611,7 @@ object OAuth2 extends App {
 
     def access(code: CodeToken): F[(RefreshToken, BearerToken)] =
       for {
-        request <- AccessRequest(
-          code.token,
-          code.redirect_uri,
-          config.clientId,
-          config.clientSecret
-        ).pure[F]
+        request <- AccessRequest(code.token, code.redirect_uri, config.clientId, config.clientSecret).pure[F]
         msg     <- client.post[AccessRequest, AccessResponse](config.access, request)
         time    <- clock.now
         expires = time + msg.expires_in.seconds
@@ -626,15 +621,27 @@ object OAuth2 extends App {
 
     def bearer(refresh: RefreshToken): F[BearerToken] =
       for {
-        request <- RefreshRequest(
-          config.clientSecret,
-          refresh.token,
-          config.clientId
-        ).pure[F]
+        request <- RefreshRequest(config.clientSecret, refresh.token, config.clientId).pure[F]
         msg     <- client.post[RefreshRequest, RefreshResponse](config.refresh, request)
         time    <- clock.now
         expires = time + msg.expires_in.seconds
         bearer  = BearerToken(msg.access_token, expires)
       } yield bearer
   }
+
+  // Summary
+
+  // - Algebraic data types (ADTs) are defined as products (final case class) and coproducts (sealed abstract class).
+
+  // - Refined types enforce constraints on values.
+
+  // - Concrete functions can be defined in an implicit class to maintain left-to-right flow.
+
+  // - Polymorphic functions are defined in typeclasses. Functionality is provided via “has a” context bounds, rather than “is a” class hierarchies.
+
+  // - Typeclass instances are implementations of a typeclass.
+
+  // - @simulacrum.typeclass generates .ops on the companion, providing convenient syntax for typeclass functions.
+
+  // - Typeclass derivation is compiletime composition of typeclass instances.
 }

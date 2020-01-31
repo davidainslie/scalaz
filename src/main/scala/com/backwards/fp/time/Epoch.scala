@@ -2,10 +2,11 @@ package com.backwards.fp.time
 
 import java.time.Instant
 import scala.concurrent.duration.FiniteDuration
-import scalaz.Show
+import scalaz.{Order, Show}
 import scalaz.ioeffect.IO
 import pureconfig.ConfigReader
 import scala.concurrent.duration._
+import scalaz.annotation.xderiving
 import pureconfig.error.FailureReason
 
 // @xderiving(Order, Arbitrary)

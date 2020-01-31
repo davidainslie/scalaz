@@ -1,6 +1,10 @@
 package com.backwards.fp.chap4
 
+import java.net.URI
 import java.util.regex.Pattern
+import scalaz.{IList, Monad, \/}
+import scalaz.\/._
+import com.backwards.fp.time.Epoch
 
 object Adt extends App {
   // Data
@@ -95,13 +99,12 @@ object Adt extends App {
   println(bad)
 }
 
-object Refined extends App {
-  import eu.timepit.refined
-  import refined.api.Refined
-  import refined.api.Validate
-  import refined.numeric.Positive
-  import refined.collection.NonEmpty
-  import refined.refineV
+object RefinedApp extends App {
+  import eu.timepit.refined.api.Refined
+  import eu.timepit.refined.api.Validate
+  import eu.timepit.refined.numeric.Positive
+  import eu.timepit.refined.collection.NonEmpty
+  import eu.timepit.refined.refineV
 
   // With Refined, instead of a smart constructor we can:
 
@@ -116,7 +119,7 @@ object Refined extends App {
   println(refineV[NonEmpty]("Sam")) // Right(Sam)
 
   // If we add the following import
-  import refined.auto._
+  import eu.timepit.refined.auto._
   // we can construct valid values at compiletime and get an error if the provided value does not meet the requirements:
 
   val sam: String Refined NonEmpty = "Sam"
@@ -124,9 +127,9 @@ object Refined extends App {
   // Following will not compile
   // val empty: String Refined NonEmpty = ""
 
-  import refined.W
-  import refined.boolean.And
-  import refined.collection.MaxSize
+  import eu.timepit.refined.W
+  import eu.timepit.refined.boolean.And
+  import eu.timepit.refined.collection.MaxSize
 
   // Constrain Person name to be non-empty and a maximum of 10 characters:
   type Name = NonEmpty And MaxSize[W.`10`.T]
@@ -260,4 +263,378 @@ object UsingSimulacrum extends App {
 
   // TODO - Broken for some reason
   // def signOfTheTimes[T: Foo.Numeric](t: T): T = -t.abs * t
+}
+
+object ImplicitResolution extends App {
+  // The normal variable scope is searched for implicits, in order:
+  // - local scope, including scoped imports (e.g. the block or method)
+  // - outer scope, including scoped imports (e.g. members in the class)
+  // - ancestors (e.g. members in the super class)
+  // - the current package object
+  // - ancestor package objects (when using nested packages)
+  // - the file’s imports
+
+  // Implicits are often defined on a trait, which is then extended by an object.
+  // This is to try and control the priority of an implicit relative to another more specific one, to avoid ambiguous implicits.
+}
+
+object OAuth2 extends App {
+  // Every Google Cloud application needs to have an OAuth 2.0 Client Key set up at:
+  // https://console.developers.google.com/apis/credentials?project={PROJECT_ID}
+  // Obtaining a Client ID and a Client secret.
+
+  import eu.timepit.refined.api.Refined
+  import eu.timepit.refined.string.Url
+
+  // The application can then obtain a one time code by making the user perform an Authorization Request in their browser.
+  // https://accounts.google.com/o/oauth2/v2/auth?\
+  //    redirect_uri={CALLBACK_URI}&\
+  //    prompt=consent&\
+  //    response_type=code&\
+  //    scope={SCOPE}&\
+  //    access_type=offline&\
+  //    client_id={CLIENT_ID}
+  final case class AuthRequest(
+    redirect_uri: String Refined Url,
+    scope: String,
+    client_id: String,
+    prompt: String = "consent",
+    response_type: String = "code",
+    access_type: String = "offline"
+  )
+  // The code is delivered to the {CALLBACK_URI} in a GET request. To capture it in our application, we need to have a web server listening on localhost.
+
+  // Once we have the code, we can perform an Access Token Request.
+  // POST /oauth2/v4/token HTTP/1.1
+  //    Host: www.googleapis.com
+  //    Content-length: {CONTENT_LENGTH}
+  //    content-type: application/x-www-form-urlencoded
+  //    user-agent: google-oauth-playground
+  //    code={CODE}&\
+  //    redirect_uri={CALLBACK_URI}&\
+  //    client_id={CLIENT_ID}&\
+  //    client_secret={CLIENT_SECRET}&\
+  //    scope={SCOPE}&\
+  //    grant_type=authorization_code
+  final case class AccessRequest(
+    code: String,
+    redirect_uri: String Refined Url,
+    client_id: String,
+    client_secret: String,
+    scope: String = "",
+    grant_type: String = "authorization_code"
+  )
+
+  // which gives a JSON response payload
+  // {
+  //    "access_token": "BEARER_TOKEN",
+  //    "token_type": "Bearer",
+  //    "expires_in": 3600,
+  //    "refresh_token": "REFRESH_TOKEN"
+  // }
+  final case class AccessResponse(
+    access_token: String,
+    token_type: String,
+    expires_in: Long,
+    refresh_token: String
+  )
+
+  // Bearer tokens typically expire after an hour, and can be refreshed by sending an HTTP request with any valid refresh token.
+  // POST /oauth2/v4/token HTTP/1.1
+  //    Host: www.googleapis.com
+  //    Content-length: {CONTENT_LENGTH}
+  //    content-type: application/x-www-form-urlencoded
+  //    user-agent: google-oauth-playground
+  //    client_secret={CLIENT_SECRET}&
+  //    grant_type=refresh_token&
+  //    refresh_token={REFRESH_TOKEN}&
+  //    client_id={CLIENT_ID}
+  final case class RefreshRequest(
+    client_secret: String,
+    refresh_token: String,
+    client_id: String,
+    grant_type: String = "refresh_token"
+  )
+
+  // responding with
+  // {
+  //    "access_token": "BEARER_TOKEN",
+  //    "token_type": "Bearer",
+  //    "expires_in": 3600
+  // }
+  final case class RefreshResponse(
+    access_token: String,
+    token_type: String,
+    expires_in: Long
+  )
+
+  // All userland requests to the server should include the header:
+  // Authorization: Bearer BEARER_TOKEN
+  // after substituting the actual BEARER_TOKEN.
+
+  // WARNING
+  // Avoid using java.net.URL at all costs: it uses DNS to resolve the hostname part when performing toString, equals or hashCode.
+  // Apart from being insane, and very very slow, these methods can throw I/O exceptions (are not pure), and can change depending on the network configuration (are not deterministic).
+
+  // We need to marshal these data classes into JSON, URLs and POST-encoded forms.
+  // Since this requires polymorphism, we will need typeclasses, where we can use the module jsonformat
+
+  import jsonformat._
+
+  implicit class JsValueOps(j: JsValue) {
+    def getAs[A: JsDecoder](key: String): String \/ A = j match {
+      // TODO - Rubbish
+      case JsObject(xs) => xs.collectFirst {
+        case (`key`, j) => j
+      }.fold(left[String, A]("Whoops"))( j => j.getAs[A](key))
+
+      case j => implicitly[JsDecoder[A]].fromJson(j)
+    }
+  }
+
+  object AccessResponse {
+    implicit val json: JsDecoder[AccessResponse] = j =>
+      for {
+        acc <- j.getAs[String]("access_token")
+        tpe <- j.getAs[String]("token_type")
+        exp <- j.getAs[Long]("expires_in")
+        ref <- j.getAs[String]("refresh_token")
+      } yield AccessResponse(acc, tpe, exp, ref)
+  }
+
+  object RefreshResponse {
+    implicit val json: JsDecoder[RefreshResponse] = j =>
+      for {
+        acc <- j.getAs[String]("access_token")
+        tpe <- j.getAs[String]("token_type")
+        exp <- j.getAs[Long]("expires_in")
+      } yield RefreshResponse(acc, tpe, exp)
+  }
+
+  import jsonformat.JsDecoder.ops._
+
+  val json: String \/ JsValue = JsParser("""{
+    "access_token": "BEARER_TOKEN",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "refresh_token": "REFRESH_TOKEN"
+  }""")
+
+  val accessResponse: String \/ AccessResponse = json.flatMap(_.as[AccessResponse])
+  println(accessResponse)
+
+  // We need to provide typeclass instances for basic types:
+  import java.net.URLEncoder
+  import simulacrum.typeclass
+  import eu.timepit.refined.api.Refined
+  import com.backwards.fp.chap4.RefinedApp.UrlEncoded
+
+  @typeclass trait UrlEncodedWriter[A] {
+    def toUrlEncoded(a: A): String Refined UrlEncoded
+  }
+
+  object UrlEncodedWriter {
+    import ops._
+
+    // Prior to SAM types, a common pattern was to define a method named instance on the typeclass companion.
+    // It is being used here because of: no SAM here https://github.com/scala/bug/issues/10814
+    def instance[T](f: T => String Refined UrlEncoded): UrlEncodedWriter[T] =
+      new UrlEncodedWriter[T] {
+        override def toUrlEncoded(t: T): String Refined UrlEncoded = f(t)
+      }
+
+    implicit val encoded: UrlEncodedWriter[String Refined UrlEncoded] =
+      instance(identity)
+
+    implicit val string: UrlEncodedWriter[String] =
+      instance(s => Refined.unsafeApply(URLEncoder.encode(s, "UTF-8")))
+
+    implicit val url: UrlEncodedWriter[String Refined Url] =
+      instance(s => s.value.toUrlEncoded)
+
+    implicit val long: UrlEncodedWriter[Long] =
+      instance(l => Refined.unsafeApply(l.toString))
+
+    import scalaz.Scalaz._ // For intercalate
+
+    implicit def ilist[K: UrlEncodedWriter, V: UrlEncodedWriter]: UrlEncodedWriter[IList[(K, V)]] = instance { l =>
+      val raw = l.map {
+        case (k, v) => k.toUrlEncoded.value + "=" + v.toUrlEncoded.value
+      }.intercalate("&")
+
+      Refined.unsafeApply(raw) // By deduction
+    }
+  }
+
+  // URL query key=value pairs, in unencoded form.
+  final case class UrlQuery(params: IList[(String, String)]) extends AnyVal
+
+  object UrlQuery {
+    import scalaz.Scalaz._ // For intercalate
+
+    object ops {
+      implicit class UrlOps(private val encoded: String Refined Url) {
+        def withQuery(query: UrlQuery): String Refined Url = {
+          val uri = new URI(encoded.value)
+
+          val update = new URI(
+            uri.getScheme,
+            uri.getUserInfo,
+            uri.getHost,
+            uri.getPort,
+            uri.getPath,
+            // Not a mistake: URI takes the decoded versions
+            query.params.map { case (k, v) => k + "=" + v }.intercalate("&"),
+            uri.getFragment
+          )
+
+          Refined.unsafeApply(update.toASCIIString)
+        }
+      }
+    }
+  }
+
+  @typeclass trait UrlQueryWriter[A] {
+    def toUrlQuery(a: A): UrlQuery
+  }
+
+  object AuthRequest {
+    implicit val query: UrlQueryWriter[AuthRequest] = { a =>
+      UrlQuery(
+        IList(
+          "redirect_uri"  -> a.redirect_uri.value,
+          "scope"         -> a.scope,
+          "client_id"     -> a.client_id,
+          "prompt"        -> a.prompt,
+          "response_type" -> a.response_type,
+          "access_type"   -> a.access_type
+        )
+      )
+    }
+  }
+
+  object AccessRequest {
+    import UrlEncodedWriter.ops._
+
+    implicit val encoded: UrlEncodedWriter[AccessRequest] = { a =>
+      IList(
+        "code"          -> a.code.toUrlEncoded,
+        "redirect_uri"  -> a.redirect_uri.toUrlEncoded,
+        "client_id"     -> a.client_id.toUrlEncoded,
+        "client_secret" -> a.client_secret.toUrlEncoded,
+        "scope"         -> a.scope.toUrlEncoded,
+        "grant_type"    -> a.grant_type.toUrlEncoded
+      ).toUrlEncoded
+    }
+  }
+
+  object RefreshRequest {
+    import UrlEncodedWriter.ops._
+
+    implicit val encoded: UrlEncodedWriter[RefreshRequest] = { r =>
+      IList(
+        "client_secret" -> r.client_secret.toUrlEncoded,
+        "refresh_token" -> r.refresh_token.toUrlEncoded,
+        "client_id"     -> r.client_id.toUrlEncoded,
+        "grant_type"    -> r.grant_type.toUrlEncoded
+      ).toUrlEncoded
+    }
+  }
+
+  // We define our dependency algebras, and use context bounds to show that our responses must have a JsDecoder and our POST payload must have a UrlEncodedWriter:
+  trait JsonClient[F[_]] {
+    def get[A: JsDecoder](
+      uri: String Refined Url,
+      headers: IList[(String, String)]
+    ): F[A]
+
+    def post[P: UrlEncodedWriter, A: JsDecoder](
+      uri: String Refined Url,
+      payload: P,
+      headers: IList[(String, String)] = IList.empty
+    ): F[A]
+  }
+
+  // Obtaining a CodeToken from the Google OAuth2 server involves:
+  // 1. Starting an HTTP server on the local machine, and obtaining its port number.
+  // 2. Making the user open a web page in their browser, which allows them to log in with their Google credentials and authorise the application, with a redirect back to the local machine.
+  // 3. capturing the code, informing the user of next steps, and closing the HTTP server.
+
+  // We can model this with three methods on a UserInteraction algebra:
+  final case class CodeToken(token: String, redirect_uri: String Refined Url)
+
+  trait UserInteraction[F[_]] {
+    def start: F[String Refined Url]
+    def open(uri: String Refined Url): F[Unit]
+    def stop: F[CodeToken]
+  }
+
+  // We also need an algebra to abstract over the local system time:
+  trait LocalClock[F[_]] {
+    def now: F[Epoch]
+  }
+
+  // Data types that we will use in the refresh logic
+  final case class ServerConfig(
+    auth: String Refined Url,
+    access: String Refined Url,
+    refresh: String Refined Url,
+    scope: String,
+    clientId: String,
+    clientSecret: String
+  )
+
+  final case class RefreshToken(token: String)
+
+  final case class BearerToken(token: String, expires: Epoch)
+
+  // Now we can write an OAuth2 client module:
+  import scala.concurrent.duration._
+  import scalaz.Scalaz._
+  import UrlQueryWriter.ops._
+  import UrlQuery.ops._
+
+  class OAuth2Client[F[_]: Monad](
+    config: ServerConfig
+  )(
+    user: UserInteraction[F],
+    client: JsonClient[F],
+    clock: LocalClock[F]
+  ) {
+    def authenticate: F[CodeToken] =
+      for {
+        callback <- user.start
+        params   = AuthRequest(callback, config.scope, config.clientId)
+        _        <- user.open(config.auth.withQuery(params.toUrlQuery))
+        code     <- user.stop
+      } yield code
+
+    def access(code: CodeToken): F[(RefreshToken, BearerToken)] =
+      for {
+        request <- AccessRequest(
+          code.token,
+          code.redirect_uri,
+          config.clientId,
+          config.clientSecret
+        ).pure[F]
+        msg     <- client.post[AccessRequest, AccessResponse](config.access, request)
+        time    <- clock.now
+        expires = time + msg.expires_in.seconds
+        refresh = RefreshToken(msg.refresh_token)
+        bearer  = BearerToken(msg.access_token, expires)
+      } yield (refresh, bearer)
+
+    def bearer(refresh: RefreshToken): F[BearerToken] =
+      for {
+        request <- RefreshRequest(
+          config.clientSecret,
+          refresh.token,
+          config.clientId
+        ).pure[F]
+        msg     <- client.post[RefreshRequest, RefreshResponse](config.refresh, request)
+        time    <- clock.now
+        expires = time + msg.expires_in.seconds
+        bearer  = BearerToken(msg.access_token, expires)
+      } yield bearer
+  }
 }

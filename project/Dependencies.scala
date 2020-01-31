@@ -49,7 +49,17 @@ object Dependencies {
       "scalaz-core"
     ).map(group %% _ % version withSources() withJavadoc()) ++ Seq(
       "scalaz-ioeffect"
-    ).map(group %% _ % "2.10.1" withSources())
+    ).map(group %% _ % "2.10.1" withSources()) ++ {
+      val version = "2.0.0-M3"
+
+      Seq(
+        "deriving-macro", "scalaz-deriving", "scalaz-deriving-magnolia", "scalaz-deriving-jsonformat"
+      ).map(group %% _ % version withSources()) ++ Seq(
+        compilerPlugin(group %% "deriving-plugin" % version cross CrossVersion.full)
+      ) ++ Seq(
+        "scalaz-deriving-scalacheck"
+      ).map(group %% _ % version % Test withSources())
+    }
   }
 
   lazy val contextual: Seq[ModuleID] = Seq(
@@ -59,4 +69,8 @@ object Dependencies {
   lazy val refined: Seq[ModuleID] = Seq(
     "eu.timepit" %% "refined-scalaz" % "0.9.2"
   )
+}
+
+abstract class Dependency(val group: String, val version: String) {
+  val modules: Seq[ModuleID]
 }

@@ -5,9 +5,20 @@ lazy val root = project("scalaz", file("."))
   .settings(description := "Scalaz by Backwards")
   .settings(javaOptions in Test ++= Seq("-Dconfig.resource=application.test.conf"))
 
+lazy val copyDocAssetsTask = taskKey[Unit]("Copy unidoc resources")
+
+copyDocAssetsTask := {
+  println("Copying unidoc resources")
+  val sourceDir = file("src/main/doc-resources")
+  val targetDir = (target in (Compile, doc)).value.getParentFile
+  println(s"from ${sourceDir.getAbsolutePath} to ${targetDir.getAbsolutePath}")
+  IO.copyDirectory(sourceDir, new java.io.File(targetDir, "unidoc"))
+}
+
+copyDocAssetsTask := (copyDocAssetsTask triggeredBy (unidoc in Compile)).value
 def project(id: String, base: File): Project =
   Project(id, base)
-    .enablePlugins(JavaAppPackaging)
+    .enablePlugins(JavaAppPackaging, ScalaUnidocPlugin, JavaUnidocPlugin)
     .settings(
       resolvers ++= Seq(
         Resolver.sonatypeRepo("releases"),
